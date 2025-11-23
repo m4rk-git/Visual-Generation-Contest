@@ -71,7 +71,7 @@ class SDXLPanoramaGenerator:
         return value_map / count_map
 
     @torch.no_grad()
-    def generate(self, prompt, height=1024, width=8192, steps=50, guidance_scale=7.5):
+    def generate(self, prompt, height=1024, width=12288, steps=50, guidance_scale=7.5):
         latent_H, latent_W = height // 8, width // 8
         
         # 1. Init Random Noise

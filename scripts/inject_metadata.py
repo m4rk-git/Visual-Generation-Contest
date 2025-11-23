@@ -51,7 +51,7 @@ def inject_xmp(image_path):
 
 if __name__ == "__main__":
     # Point this to your best panorama
-    target_img = "../output/final_panorama_8k.png"
+    target_img = "../output/final_panorama.png"
     if os.path.exists(target_img):
         inject_xmp(target_img)
     else:
