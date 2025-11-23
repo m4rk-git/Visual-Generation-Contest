@@ -11,9 +11,17 @@ from renderer import SimpleVolumeRenderer
 from voxel_grid import LearnableVoxelGrid
 from sds_utils import SDSLoss
 
+# --- HELPER: Total Variation Loss (Fixes Shimmering) ---
+def compute_tv_loss(grid):
+    # grid: [4, H, W, D]
+    # Calculate difference between neighbors in X, Y, Z directions
+    diff_x = (grid[:, 1:, :, :] - grid[:, :-1, :, :]).abs().mean()
+    diff_y = (grid[:, :, 1:, :] - grid[:, :, :-1, :]).abs().mean()
+    diff_z = (grid[:, :, :, 1:] - grid[:, :, :, :-1]).abs().mean()
+    return diff_x + diff_y + diff_z
+
 def save_debug_gif(renderer, voxel_grid, path):
     images = []
-    # Save a quick spin
     for angle in np.linspace(0, 360, 20): 
         origins, dirs = renderer.get_camera_rays(H=256, W=256, azimuth=angle, radius=2.5)
         with torch.no_grad():
@@ -25,7 +33,7 @@ def save_debug_gif(renderer, voxel_grid, path):
 
 def main():
     device = "cuda"
-    prompt = "A bright red apple, 3d render, white background, 4k"
+    prompt = "A glowing red sphere, 3d render, 4k"
     
     print(f"Test Target: '{prompt}'")
 
@@ -33,14 +41,16 @@ def main():
     grid_model = LearnableVoxelGrid(resolution=64, device=device).to(device)
     sds_loss = SDSLoss(device)
     
-    # Use 0.05 LR. If colors still don't move, we might increase this later.
-    optimizer = optim.Adam(grid_model.parameters(), lr=0.05)
+    # Lower LR slightly to let TV loss work
+    optimizer = optim.Adam([
+        {'params': grid_model.colors, 'lr': 0.1}, # Lowered from 1.0
+        {'params': grid_model.density, 'lr': 0.05}
+    ])
     
     target_embeds = sds_loss.encode_text(prompt)
     
-    print("Starting Sanity Check (Random Init + Color Grad Debug)...")
+    print("Starting Test (Red Init + TV Loss)...")
     
-    # 200 Steps
     for step in range(201):
         optimizer.zero_grad()
         
@@ -52,35 +62,36 @@ def main():
         
         img_batch = img.permute(2, 0, 1).unsqueeze(0)
         
-        # Increase scale slightly to 50 for stronger color signal
-        loss = sds_loss.compute_loss(img_batch, target_embeds, guidance_scale=50.0)
+        # Main SDS Loss
+        loss_sds = sds_loss.compute_loss(img_batch, target_embeds, guidance_scale=100.0)
         
-        loss.backward()
+        # TV Loss (Smoothness)
+        # We assume density (channel 3) needs the most smoothing to stop "fog"
+        # We smooth colors (0-3) less to allow texture
+        full_grid = grid_model()
+        loss_tv_density = compute_tv_loss(full_grid[3:4, ...]) * 1.0
+        loss_tv_color = compute_tv_loss(full_grid[0:3, ...]) * 0.1
         
-        if step % 20 == 0:
-            # --- DETAILED GRADIENT CHECK ---
-            # Color Gradients (First 3 channels)
-            color_grad = grid_model.grid.grad[:3].norm().item()
-            # Density Gradients (4th channel)
-            density_grad = grid_model.grid.grad[3].norm().item()
-            
-            # Values
-            mean_r = torch.sigmoid(grid_model.grid.data[0].mean()).item()
-            mean_g = torch.sigmoid(grid_model.grid.data[1].mean()).item()
-            mean_b = torch.sigmoid(grid_model.grid.data[2].mean()).item()
-            max_density = torch.nn.functional.softplus(grid_model.grid.data[3].max()).item()
-
-            print(f"Step {step:03d} | Loss: {loss.item():.2f}")
-            print(f"   > Gradients -> Color: {color_grad:.4f} | Density: {density_grad:.4f}")
-            print(f"   > Avg Colors -> R:{mean_r:.2f} G:{mean_g:.2f} B:{mean_b:.2f}")
-            print(f"   > Max Density: {max_density:.2f}")
-
+        total_loss = loss_sds + loss_tv_density + loss_tv_color
+        
+        total_loss.backward()
+        
+        # Clip grads
+        torch.nn.utils.clip_grad_norm_(grid_model.parameters(), 1.0)
+        
         optimizer.step()
         
+        if step % 20 == 0:
+            mean_r = torch.sigmoid(grid_model.colors.data[0].mean()).item()
+            mean_g = torch.sigmoid(grid_model.colors.data[1].mean()).item()
+            mean_b = torch.sigmoid(grid_model.colors.data[2].mean()).item()
+            print(f"Step {step:03d} | SDS: {loss_sds.item():.2f} | TV: {loss_tv_density.item():.4f}")
+            print(f"   > Avg Colors -> R:{mean_r:.3f} G:{mean_g:.3f} B:{mean_b:.3f}")
+
         if step % 50 == 0:
             save_debug_gif(renderer, grid_model, f"../output/test_apple_{step}.gif")
 
-    print("Test Complete.")
+    print("Test Complete. Check output/test_apple_0.gif immediately!")
 
 if __name__ == "__main__":
     main()
