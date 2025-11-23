@@ -110,7 +110,11 @@ def create_immersive_video(image_path, output_path, duration_sec=12, fps=30, fov
         
         # Remap (Warps the image)
         # INTER_LINEAR is fast and looks good. INTER_CUBIC is sharper but slower.
-        frame = cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+        frame = cv2.remap(
+            img, map_x, map_y, 
+            interpolation=cv2.INTER_CUBIC,  # Sharper resampling
+            borderMode=cv2.BORDER_WRAP
+        )
         
         out.write(frame)
         
