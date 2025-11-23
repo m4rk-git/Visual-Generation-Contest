@@ -6,17 +6,39 @@ from pipeline_panorama import SDXLPanoramaGenerator
 def main():
     generator = SDXLPanoramaGenerator()
     
-    # Prompt Engineering for Wide Aspect Ratio
-    # Keywords like "wide angle", "panorama", "seamless" help.
-    prompt = "A breathtaking seamless panorama of a futuristic cyberpunk city at night, neon lights reflecting in rain puddles, towering skyscrapers, flying cars, 8k resolution, highly detailed, cinematic lighting, wide angle lens"
+    # 1. FRONT PROMPT (The Subject)
+    # Only active in the middle of the image
+    prompt_front = (
+        "equirectangular projection, "
+        "a gargantuan supermassive black hole with a glowing golden accretion disk, "
+        "gravitational lensing, event horizon, cinematic lighting, 8k resolution"
+    )
     
-    # Generate 4096px wide image (Ratio 4:1)
-    # This might take ~1-2 minutes on KCLOUD A100
-    image = generator.generate(prompt, height=1024, width=4096, steps=50)
+    # 2. BACK PROMPT (The Void)
+    # Active everywhere else. Explicitly ask for empty space.
+    prompt_back = (
+        "equirectangular projection, "
+        "empty deep space background, pitch black void, distant tiny stars, "
+        "minimalist, darkness, high contrast, 8k resolution"
+    )
+    
+    # Increase width to 8192 for crisp stars
+    width = 10240
+    
+    print(f"Generating Solitary Black Hole ({width}x1024)...")
+    
+    image = generator.generate(
+        prompt_front=prompt_front,
+        prompt_back=prompt_back,
+        height=1024, 
+        width=width, 
+        steps=50,
+        guidance_scale=8.0
+    )
     
     output_path = "../output/final_panorama.png"
     image.save(output_path)
-    print(f"Saved panorama to {output_path}")
+    print(f"Saved to {output_path}")
 
 if __name__ == "__main__":
     main()
