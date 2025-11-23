@@ -24,13 +24,21 @@
 <script>
 pannellum.viewer('panorama', {
     "type": "equirectangular",
-    "panorama": "../output/final_panorama.png",  /* Point this to your image */
+    "panorama": "../output/final_panorama.png",
     "autoLoad": true,
-    "autoRotate": -2,      /* Slowly rotates automatically */
-    "compass": true,
-    "hfov": 110,           /* Field of view */
-    "minHfov": 50,         /* Zoom in limit */
-    "maxHfov": 120         /* Zoom out limit */
+    "autoRotate": -2,
+    "compass": false,
+    "backgroundColor": [0, 0, 0],
+    
+    /* FIX: Tell the viewer this is a strip, not a full sphere */
+    "haov": 360,     /* Horizontal Angle of View: Full 360 wrap */
+    "vaov": 36,      /* Vertical Angle of View: (1024/10240) * 360 * 0.5 = 36 degrees */
+    "vOffset": 0,    /* Center it vertically */
+    
+    /* Camera settings */
+    "hfov": 100,
+    "minHfov": 50,
+    "maxHfov": 120
 });
 </script>
 
