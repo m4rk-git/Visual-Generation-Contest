@@ -4,3 +4,7 @@ transformers>=4.30.0
 accelerate>=0.20.0
 safetensors
 opencv-python
+
+torchvision>=0.16.0
+Pillow
+tqdm
