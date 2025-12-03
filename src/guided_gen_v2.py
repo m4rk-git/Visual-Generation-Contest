@@ -33,7 +33,7 @@ MACRO_TILE_PX = MACRO_SIZE // GRID_SIZE   # = 16 px per macro tile
 
 # ---- Micro-patches ----
 MICRO_TILE_PX = 64             # final output tile resolution
-MICRO_SAMPLES = 500            # how many SDXL micro-tiles to generate
+MICRO_SAMPLES = 300            # how many SDXL micro-tiles to generate
 
 # ---- Final mosaic resolution ----
 FINAL_RES = GRID_SIZE * MICRO_TILE_PX     # 4096 x 4096
@@ -56,9 +56,8 @@ MACRO_PROMPTS = [
 
 MICRO_CLASSES = {
     "FACE": [
-        "cute emoji-style human face, simple, glossy, centered",
-        "friendly emoji face, high quality, clean edges",
-        "minimal emoji face, bold, flat shading"
+        "a flat 2D round face icon, thick outline, solid fill, minimal eyes, simple mouth, no shading",
+        "a minimal vector face emoji, centered, flat colors, clean edges, plain background",
     ],
     "CAT": [
         "cute emoji-style cat face, glossy, centered",
@@ -138,10 +137,15 @@ def load_sdxl():
 @torch.no_grad()
 def generate_micro_tiles(pipe, device, micro_class):
     """
-    Generate MICRO_SAMPLES micro-tiles using SDXL.
-    SDXL produces best quality at large resolution, so:
-    - Generate at 256×256
-    - Downsample to 32×32 using area interpolation
+    LEGAL SDXL-ONLY MICRO TILE GENERATOR
+    -----------------------------------
+    - SDXL cannot generate clean 32×32 images directly.
+    - So we generate at 512×512 (clean object)
+    - Then we downsample to 32×32 using area interpolation
+      (perfect for preserving flat shapes and removing noise).
+
+    Returns:
+        tiles: list of 3×MICRO_TILE_PX×MICRO_TILE_PX tensors (CPU)
     """
 
     prompts = MICRO_CLASSES[micro_class]
@@ -151,31 +155,43 @@ def generate_micro_tiles(pipe, device, micro_class):
 
     for i in range(MICRO_SAMPLES):
 
+        # pick random prompt variant
         prompt = random.choice(prompts)
 
-        # --- HIGH-RES GENERATION ---
+        # -------------------------------------------------------------
+        # 1) High-resolution generation (necessary for clean shapes)
+        # -------------------------------------------------------------
         out = pipe(
             prompt,
-            height=512,               # Generate larger for quality
+            height=512,
             width=512,
             num_inference_steps=MICRO_STEPS,
             guidance_scale=3.0,
-            output_type="pt",
+            output_type="pt",   # returns torch tensor in [0,1]
         )
 
-        big = out.images[0].unsqueeze(0)   # (1,3,256,256)
+        big = out.images[0].unsqueeze(0)   # (1,3,512,512)
 
-        # --- DOWNSAMPLE TO MICRO_TILE_PX ---
+        # -------------------------------------------------------------
+        # 2) Downsample cleanly → 32×32 micro tile
+        #    "area" mode prevents aliasing + keeps edges sharp
+        # -------------------------------------------------------------
         small = F.interpolate(
             big,
             size=(MICRO_TILE_PX, MICRO_TILE_PX),
-            mode="area"            # best for downsampling small icons
-        ).squeeze(0)
+            mode="area"
+        ).squeeze(0)  # (3, MICRO_TILE_PX, MICRO_TILE_PX)
 
-        # keep tiles on CPU
+        # -------------------------------------------------------------
+        # 3) Store on CPU
+        # -------------------------------------------------------------
         tiles.append(small.cpu())
 
+        if (i + 1) % 50 == 0:
+            log(f"   generated {i+1}/{MICRO_SAMPLES} micro tiles")
+
     return tiles
+
 
 
 
