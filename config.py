@@ -2,7 +2,6 @@ import os
 
 # Paths
 OUTPUT_DIR = "output_samples"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ---- Resolution ----
 MACRO_SIZE = 1024
@@ -21,7 +20,7 @@ MACRO_STEPS = 30
 MICRO_STEPS = 15  # We can afford higher steps/quality since we only gen 16 images
 GUIDANCE = 5.0
 
-TILE_STYLE = "ANIME"
+TILE_STYLE = "FLOWERS"
 
 # ---- Prompts ----
 MACRO_PROMPTS = [
@@ -57,5 +56,33 @@ STYLE_CONFIG = {
             "grid, tiling, multiple characters, text, signature"
         ),
         "guidance": 7.0,  # Slightly lower for "artistic" 2D style
+    },
+    "FISH": {
+        "base_prompts": [
+            "macro photography of a single tropical fish, side profile, exotic, centered",
+            # REMOVED: "3d render of a cute round pufferfish, floating, minimal, centered",
+            "close-up of a beta fish, flowing fins, elegant, solo object",
+            "vibrant clownfish swimming, coral reef background, detailed scales, centered",
+            "majestic koi fish, top-down view, rippled water, artistic style",
+        ],
+        "negative_prompt": (
+            "pufferfish, blowfish, spiked fish, balloon fish, "  # <--- Explicitly ban them here too
+            "fishing, dead, market, food, sushi, cooking, hook, net, "
+            "grid, tiling, flock, school of fish, multiple fish, text, watermark, "
+            "aquarium glass, reflection, messy background"
+        ),
+        "guidance": 7.5, 
+    },
+    "FLOWERS": {
+        "base_prompts": [
+            "macro photography of a single flower head, top-down view, centered, highly detailed",
+            "close-up of a blooming blossom, soft natural lighting, depth of field, solo object",
+            "botanical illustration of a flower, clean background, vivid colors, centered",
+        ],
+        "negative_prompt": (
+            "bouquet, vase, stem, leaves, garden, field, many flowers, grid, tiling, "
+            "wilted, dry, dead, text, watermark, messy background, insects"
+        ),
+        "guidance": 7.0,
     },
 }

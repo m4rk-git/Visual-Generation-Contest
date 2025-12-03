@@ -71,12 +71,25 @@ def generate_palette_tiles(pipe, palette_info):
                     f"{base}, {color} color scheme, {color} skin, {color} background, "
                     f"{color} lighting, isolated, solitary, 3d render"
                 )
-            else:
+            elif active_style == "ANIME":
                 # Anime Prompting (Flat Color focus)
                 prompt = (
                     f"{base}, {color} hair, {color} eyes, {color} clothes, {color} theme, "
                     f"flat color, 2d art, simple background, centered, distinct facial features"
                 )
+            elif active_style == "FISH":
+                # Fish Prompt Logic
+                prompt = (
+                    f"{base}, {color} scales, {color} fins, {color} bioluminescence, "
+                    f"{color} underwater background, distinct patterns, vibrant"
+                )
+            elif active_style == "FLOWERS":
+                prompt = (
+                    f"{base}, {color} petals, {color} bloom, {color} center, "
+                    f"nature photography, distinct {color} color, soft bokeh background"
+                )
+            else:
+                raise ValueError(f"Unknown style: {active_style}")
 
             # 3. GENERATE
             out = pipe(
