@@ -22,13 +22,23 @@ MICRO_STEPS = 15                # We can afford higher steps/quality since we on
 GUIDANCE = 5.0
 
 # ---- Prompts ----
-MICRO_BASE_PROMPTS = [
-    "3d render of a cute emoji face, glossy, centered, white background, high quality",
-    "minimalist smooth 3d object, emoji style, centered, high contrast",
-]
-
 MACRO_PROMPTS = [
     "majestic landscape, northern lights over snowy mountains, vivid colors, 8k",
     "lush green forest clearing with sunlight streaming through trees, studio ghibli style",
     "cyberpunk city street at night, neon lights, highly detailed"
 ]
+
+# We use "Head" and "Portrait" to force a single central object.
+MICRO_BASE_PROMPTS = [
+    "3d render of a single robot head, straight on, centered",
+    "glossy plastic mannequin head, minimal, centered",
+    "sculpture of a rounded face, smooth 3d style, solo object",
+]
+
+# We explicitly ban "collections" and "sheets"
+NEGATIVE_PROMPT = (
+    "grid, tiling, sprite sheet, collection, group, many faces, "
+    "multiple views, split screen, text, watermark, detailed background, "
+    "body, neck, shoulders"
+)
+

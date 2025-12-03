@@ -1,4 +1,3 @@
-import numpy as np
 from sklearn.cluster import KMeans
 from torch.nn import functional as F
 from .utils import log, get_color_name
