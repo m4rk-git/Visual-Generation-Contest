@@ -10,6 +10,7 @@ import math
 import random
 import faiss
 import numpy as np
+import cv2
 from PIL import Image
 
 import torch
@@ -56,9 +57,9 @@ MACRO_PROMPTS = [
 
 MICRO_CLASSES = {
     "FACE": [
-        "cute emoji-style human face, simple, glossy, centered",
-        "friendly emoji face, high quality, clean edges",
-        "minimal emoji face, bold, flat shading"
+        "a flat 2D circular yellow emoji face, thick black outline, two dots for eyes, simple curved mouth, centered, no shading, vector icon, plain background",
+        "minimal flat emoji face, perfect circle, bold outline, dot eyes, line mouth, centered, no texture, no gradients, no noise",
+        "simple flat cartoon face icon, perfect symmetry, front view, thick outline, no background",
     ],
     "CAT": [
         "cute emoji-style cat face, glossy, centered",
@@ -130,6 +131,34 @@ def load_sdxl():
     log(f">> SDXL on {device}, dtype={dtype}")
     return pipe, device
 
+def filter_micro_tiles(tiles, min_contrast=0.05):
+    """
+    Remove tiles that are too flat, too noisy, or too dark.
+    """
+    keep = []
+    for t in tiles:
+        if t.std() < min_contrast:   # too flat (blank tile)
+            continue
+        if t.mean() < 0.05 or t.mean() > 0.95:   # too dark / too light
+            continue
+        keep.append(t)
+    return keep
+
+
+
+def tile_features(t):
+    # LAB mean
+    lab = rgb_to_lab_tensor(t)
+
+    # edge magnitude
+    g = (t.mean(dim=0).numpy() * 255).astype(np.uint8)
+    edges = cv2.Canny(g, 30, 120)
+    edge_strength = edges.mean() / 255.0
+
+    # contrast
+    contrast = float(t.std().item())
+
+    return torch.tensor([lab[0], lab[1], lab[2], edge_strength, contrast])
 
 # ================================================================
 # 1) Generate micro-tiles on the fly (legal)
@@ -188,9 +217,8 @@ def build_faiss_index(tiles):
     for t in tiles:
         feats.append(rgb_to_lab_tensor(t))
 
-    feats = torch.stack(feats, dim=0).numpy().astype("float32")
-
-    index = faiss.IndexFlatL2(3)
+    feats = torch.stack([tile_features(t) for t in tiles]).numpy().astype("float32")
+    index = faiss.IndexFlatL2(5)
     index.add(feats)
 
     return feats, index
@@ -282,6 +310,7 @@ def main():
 
     # === 1) Generate micro patch dataset ===
     tiles = generate_micro_tiles(pipe, device, MICRO_CLASS)
+    tiles = filter_micro_tiles(tiles)
     tiles = [t.cpu() for t in tiles]     
 
     # === 2) Build FAISS index ===
