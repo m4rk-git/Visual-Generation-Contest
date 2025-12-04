@@ -209,3 +209,5 @@ __marimo__/
 
 #Guided samples and patch samples
 data/
+
+.DS_Store
