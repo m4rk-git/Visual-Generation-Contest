@@ -11,8 +11,7 @@ MACRO_TILE_PX = MACRO_SIZE // GRID_SIZE
 MICRO_TILE_PX = 64  # Final tile size
 
 # ---- The Optimization ----
-PALETTE_SIZE = 64  # Only generate 16 distinct tiles!
-# Increase to 32 for better color fidelity if time permits.
+PALETTE_SIZE = 64  # Number of colors in macro palette
 
 # ---- SDXL ----
 DEVICE = "cuda"
@@ -71,7 +70,7 @@ STYLE_CONFIG = {
             "grid, tiling, flock, school of fish, multiple fish, text, watermark, "
             "aquarium glass, reflection, messy background"
         ),
-        "guidance": 7.5, 
+        "guidance": 7.5,
     },
     "FLOWERS": {
         "base_prompts": [
