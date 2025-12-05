@@ -1,5 +1,3 @@
-import os
-
 # Paths
 OUTPUT_DIR = "output_samples"
 
@@ -28,21 +26,8 @@ MACRO_PROMPTS = [
     "cyberpunk city street at night, neon lights, highly detailed",
 ]
 
-# ---- PROMPT DATABASE ----
+# ---- PROMPTS ----
 STYLE_CONFIG = {
-    "FACES": {
-        "base_prompts": [
-            "3d render of a single robot head, straight on, centered",
-            "glossy plastic mannequin head, minimal, centered",
-            "sculpture of a rounded face, smooth 3d style, solo object",
-        ],
-        "negative_prompt": (
-            "grid, tiling, sprite sheet, collection, group, many faces, "
-            "multiple views, split screen, text, watermark, detailed background, "
-            "body, neck, shoulders, anime, 2d, drawing, sketch"
-        ),
-        "guidance": 8.0,  # High guidance for 3D object coherence
-    },
     "ANIME": {
         "base_prompts": [
             "flat 2d vector art of a cute anime chibi character, simple, clean lines, white background",
@@ -54,7 +39,7 @@ STYLE_CONFIG = {
             "sketch, rough, messy, grayscale, monochrome, low quality, "
             "grid, tiling, multiple characters, text, signature"
         ),
-        "guidance": 7.0,  # Slightly lower for "artistic" 2D style
+        "guidance": 7.0,
     },
     "FISH": {
         "base_prompts": [

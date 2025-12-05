@@ -58,27 +58,18 @@ def generate_palette_tiles(pipe, palette_info):
             f"   [{i}/{total_tiles}] Generating {active_style} tile for: {color.upper()}..."
         )
 
-        # Retry loop for quality control
         valid_tile = None
         for attempt in range(3):
 
             # 2. CONSTRUCT PROMPT BASED ON STYLE
             base = random.choice(style_settings["base_prompts"])
 
-            if active_style == "FACES":
-                # 3D Prompting (Lighting focus)
-                prompt = (
-                    f"{base}, {color} color scheme, {color} skin, {color} background, "
-                    f"{color} lighting, isolated, solitary, 3d render"
-                )
-            elif active_style == "ANIME":
-                # Anime Prompting (Flat Color focus)
+            if active_style == "ANIME":
                 prompt = (
                     f"{base}, {color} hair, {color} eyes, {color} clothes, {color} theme, "
                     f"flat color, 2d art, simple background, centered, distinct facial features"
                 )
             elif active_style == "FISH":
-                # Fish Prompt Logic
                 prompt = (
                     f"{base}, {color} scales, {color} fins, {color} bioluminescence, "
                     f"{color} underwater background, distinct patterns, vibrant"
@@ -98,11 +89,11 @@ def generate_palette_tiles(pipe, palette_info):
                 height=1024,
                 width=1024,
                 num_inference_steps=config.MICRO_STEPS,
-                guidance_scale=style_settings["guidance"],  # Use specific guidance
+                guidance_scale=style_settings["guidance"],
                 output_type="pt",
             ).images[0]
 
-            # 4. CENTER CROP (Crucial for both styles)
+            # 4. CENTER CROP
             c_h, c_w = 1024, 1024
             crop_size = 600
             start_y = (c_h - crop_size) // 2
@@ -128,7 +119,7 @@ def generate_palette_tiles(pipe, palette_info):
             if std_dev < 0.05:
                 log(f"     -> Attempt {attempt+1} failed: Too flat (std={std_dev:.3f})")
                 continue
-            elif std_dev > 0.45:  # Anime allows slightly more complexity than 3D icons
+            elif std_dev > 0.45:
                 log(
                     f"     -> Attempt {attempt+1} failed: Too noisy (std={std_dev:.3f})"
                 )
