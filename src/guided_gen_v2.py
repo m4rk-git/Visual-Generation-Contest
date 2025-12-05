@@ -6,7 +6,6 @@
 # ================================================================
 
 import os
-import math
 import random
 import faiss
 import numpy as np
@@ -18,7 +17,6 @@ from torchvision.utils import save_image
 from torchvision import transforms as T
 from diffusers import StableDiffusionXLPipeline
 
-
 # ================================================================
 # CONFIG
 # ================================================================
@@ -27,19 +25,19 @@ OUTPUT_DIR = "data/guided_samples"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ---- Macro scene (big picture) ----
-MACRO_SIZE = 1024              # SDXL generation
-GRID_SIZE = 64                
+MACRO_SIZE = 1024              # SDXL generation size (H=W=1024)
+GRID_SIZE = 64                 # 64 x 64 = 4096 tiles
 MACRO_TILE_PX = MACRO_SIZE // GRID_SIZE   # = 16 px per macro tile
 
-# ---- Micro-patches ----
-MICRO_TILE_PX = 64             # final output tile resolution
+# ---- Micro-patches (tiny images that form the mosaic) ----
+MICRO_TILE_PX = 64             # each tile in final mosaic is 64x64
 MICRO_SAMPLES = 300            # how many SDXL micro-tiles to generate
 
 # ---- Final mosaic resolution ----
-FINAL_RES = GRID_SIZE * MICRO_TILE_PX     # 4096 x 4096
+FINAL_RES = GRID_SIZE * MICRO_TILE_PX     # 64 * 64 = 4096 x 4096
 
 # ---- Recoloring ----
-RECOLOR_STRENGTH = 0.05       # 15% color tint only
+RECOLOR_STRENGTH = 0.05        # 5% color tint only
 BRIGHTNESS_CLAMP = (0.7, 1.4)  # brightness scaling range
 
 # ---- SDXL Sampling ----
@@ -70,10 +68,10 @@ MICRO_CLASSES = {
     "SYMBOL": [
         "bold black icon, centered, high contrast",
         "bold geometric shape icon, crisp edges",
-    ]
+    ],
 }
 
-MICRO_CLASS = "FACE"     # change here
+MICRO_CLASS = "FACE"     # <<< change here for CAT / FLOWER / SYMBOL
 
 
 # ================================================================
@@ -82,22 +80,24 @@ MICRO_CLASS = "FACE"     # change here
 
 to_tensor = T.ToTensor()
 
-def log(x):
+
+def log(x: str):
     print(x, flush=True)
 
 
 # -----------------------------
-# Convert RGB → LAB
+# Convert RGB → LAB (mean color)
 # -----------------------------
-def rgb_to_lab_tensor(x):
+def rgb_to_lab_tensor(x: torch.Tensor) -> torch.Tensor:
     """
-    x: tensor 3xHxW in [0,1]
-    returns: 3-dim mean LAB feature
+    x: tensor 3xHxW in [0,1] (CPU or CUDA)
+    returns: 3-dim mean LAB feature (float32 on CPU)
     """
-    x = x.cpu()                
+    x = x.detach().cpu()
     img = (x * 255).permute(1, 2, 0).numpy().astype("uint8")
     pil = Image.fromarray(img, mode="RGB")
-    lab = np.array(pil.convert("LAB"))
+    lab = np.array(pil.convert("LAB"))  # H x W x 3
+
     L = lab[:, :, 0].mean()
     A = lab[:, :, 1].mean()
     B = lab[:, :, 2].mean()
@@ -123,7 +123,7 @@ def load_sdxl():
     try:
         pipe.enable_xformers_memory_efficient_attention()
         log(">> xFormers enabled")
-    except:
+    except Exception:
         log(">> xFormers NOT available")
 
     log(f">> SDXL on {device}, dtype={dtype}")
@@ -139,13 +139,12 @@ def generate_micro_tiles(pipe, device, micro_class):
     """
     LEGAL SDXL-ONLY MICRO TILE GENERATOR
     -----------------------------------
-    - SDXL cannot generate clean 32×32 images directly.
-    - So we generate at 512×512 (clean object)
-    - Then we downsample to 32×32 using area interpolation
-      (perfect for preserving flat shapes and removing noise).
+    - SDXL produces higher quality at larger resolutions.
+    - We generate at 512×512, then downsample to MICRO_TILE_PX×MICRO_TILE_PX
+      using area interpolation (good for icon-like shapes).
 
     Returns:
-        tiles: list of 3×MICRO_TILE_PX×MICRO_TILE_PX tensors (CPU)
+        tiles: list of 3×MICRO_TILE_PX×MICRO_TILE_PX tensors on CPU in [0,1]
     """
 
     prompts = MICRO_CLASSES[micro_class]
@@ -154,37 +153,25 @@ def generate_micro_tiles(pipe, device, micro_class):
     log(f">> Generating {MICRO_SAMPLES} micro tiles of class {micro_class}")
 
     for i in range(MICRO_SAMPLES):
-
-        # pick random prompt variant
         prompt = random.choice(prompts)
 
-        # -------------------------------------------------------------
-        # 1) High-resolution generation (necessary for clean shapes)
-        # -------------------------------------------------------------
         out = pipe(
             prompt,
             height=512,
             width=512,
             num_inference_steps=MICRO_STEPS,
             guidance_scale=3.0,
-            output_type="pt",   # returns torch tensor in [0,1]
+            output_type="pt",   # torch tensor in [0,1]
         )
 
         big = out.images[0].unsqueeze(0)   # (1,3,512,512)
 
-        # -------------------------------------------------------------
-        # 2) Downsample cleanly → 32×32 micro tile
-        #    "area" mode prevents aliasing + keeps edges sharp
-        # -------------------------------------------------------------
         small = F.interpolate(
             big,
             size=(MICRO_TILE_PX, MICRO_TILE_PX),
-            mode="area"
-        ).squeeze(0)  # (3, MICRO_TILE_PX, MICRO_TILE_PX)
+            mode="area"                    # good for downsampling
+        ).squeeze(0)                        # (3, MICRO_TILE_PX, MICRO_TILE_PX)
 
-        # -------------------------------------------------------------
-        # 3) Store on CPU
-        # -------------------------------------------------------------
         tiles.append(small.cpu())
 
         if (i + 1) % 50 == 0:
@@ -193,22 +180,25 @@ def generate_micro_tiles(pipe, device, micro_class):
     return tiles
 
 
-
-
 # ================================================================
 # 2) Compute LAB features + index in FAISS
 # ================================================================
 
 def build_faiss_index(tiles):
-    feats = []
-    for t in tiles:
-        feats.append(rgb_to_lab_tensor(t))
+    """
+    tiles: list of 3xHxW tensors
+    returns:
+        feats:  N x 3 float32 array
+        index:  FAISS IndexFlatL2(3)
+    """
+    feats_list = [rgb_to_lab_tensor(t) for t in tiles]
+    feats = torch.stack(feats_list, dim=0).numpy().astype("float32")
 
-    feats = torch.stack(feats, dim=0).numpy().astype("float32")
-
-    index = faiss.IndexFlatL2(3)
+    d = feats.shape[1]  # should be 3
+    index = faiss.IndexFlatL2(d)
     index.add(feats)
 
+    log(f">> FAISS index built: N={feats.shape[0]}, dim={d}")
     return feats, index
 
 
@@ -228,7 +218,7 @@ def generate_macro(pipe, prompt, device):
         guidance_scale=GUIDANCE,
         output_type="pt",
     )
-    return out.images[0]   # 3xH x W
+    return out.images[0]   # 3 x H x W in [0,1]
 
 
 # ================================================================
@@ -236,17 +226,22 @@ def generate_macro(pipe, prompt, device):
 # ================================================================
 
 def build_mosaic(macro, tiles, feats, index, micro_class):
+    """
+    macro: 3×H×W in [0,1] (CPU)
+    tiles: list of 3×MICRO_TILE_PX×MICRO_TILE_PX in [0,1] (CPU)
+    feats: N×3 LAB features (not used directly here, but kept for clarity)
+    index: FAISS IndexFlatL2(3)
+    """
+
+    # ensure macro is exactly MACRO_SIZE×MACRO_SIZE
     macro = macro.unsqueeze(0)      # 1×3×H×W
-    macro = F.interpolate(macro, size=(MACRO_SIZE, MACRO_SIZE), mode="bilinear")
-    macro = macro.squeeze(0)
+    macro = F.interpolate(macro, size=(MACRO_SIZE, MACRO_SIZE), mode="bilinear", align_corners=False)
+    macro = macro.squeeze(0)        # 3×MACRO_SIZE×MACRO_SIZE
 
     mosaic = torch.zeros(3, FINAL_RES, FINAL_RES)
-    macro_np = macro.cpu().numpy()
-
     log(f">> Building mosaic {GRID_SIZE}x{GRID_SIZE} → {FINAL_RES}x{FINAL_RES}")
 
-    # dithering offset to avoid grid artifacts
-    dither_amp = 0.05
+    dither_amp = 0.05  # small LAB jitter to break regular patterns
 
     for gy in range(GRID_SIZE):
         for gx in range(GRID_SIZE):
@@ -254,16 +249,16 @@ def build_mosaic(macro, tiles, feats, index, micro_class):
             x0 = gx * MACRO_TILE_PX
 
             block = macro[:, y0:y0 + MACRO_TILE_PX, x0:x0 + MACRO_TILE_PX]
-            lab_feat = rgb_to_lab_tensor(block)
 
-            # dithering
+            lab_feat = rgb_to_lab_tensor(block)
             jitter = torch.randn(3) * dither_amp
             query = (lab_feat + jitter).numpy().astype("float32")
 
-            # nearest neighbor
+            # safety check to avoid FAISS dimension mismatch
+            assert query.shape[0] == index.d, f"Query dim {query.shape[0]} != index dim {index.d}"
+
             D, I = index.search(query.reshape(1, -1), 1)
             idx = int(I[0][0])
-
             chosen = tiles[idx]
 
             # brightness-match
@@ -274,15 +269,16 @@ def build_mosaic(macro, tiles, feats, index, micro_class):
 
             recolored = (chosen * scale).clamp(0, 1)
 
-            # slight tint
-            tint = block.mean(dim=(1,2)).view(3,1,1)
-            recolored = recolored*(1-RECOLOR_STRENGTH) + tint*RECOLOR_STRENGTH
+            # very slight color tint towards macro tile
+            tint = block.mean(dim=(1, 2), keepdim=True)  # 3×1×1
+            recolored = recolored * (1 - RECOLOR_STRENGTH) + tint * RECOLOR_STRENGTH
+            recolored = recolored.clamp(0, 1)
 
             oy = gy * MICRO_TILE_PX
             ox = gx * MICRO_TILE_PX
-            mosaic[:, oy:oy+MICRO_TILE_PX, ox:ox+MICRO_TILE_PX] = recolored
+            mosaic[:, oy:oy + MICRO_TILE_PX, ox:ox + MICRO_TILE_PX] = recolored
 
-        if (gy+1) % 8 == 0:
+        if (gy + 1) % 8 == 0:
             log(f"   row {gy+1}/{GRID_SIZE} complete")
 
     return mosaic
@@ -293,21 +289,18 @@ def build_mosaic(macro, tiles, feats, index, micro_class):
 # ================================================================
 
 def main():
-
     pipe, device = load_sdxl()
 
-    # === 1) Generate micro patch dataset ===
+    # 1) Generate micro patch dataset
     tiles = generate_micro_tiles(pipe, device, MICRO_CLASS)
-    tiles = [t.cpu() for t in tiles]     
+    tiles = [t.cpu() for t in tiles]
 
-    # === 2) Build FAISS index ===
+    # 2) Build FAISS index
     feats, index = build_faiss_index(tiles)
 
-    # === 3) Generate mosaics ===
+    # 3) Generate mosaics for each macro prompt
     for i, prompt in enumerate(MACRO_PROMPTS):
-
         macro = generate_macro(pipe, prompt, device).cpu()
-
         mosaic = build_mosaic(macro, tiles, feats, index, MICRO_CLASS)
 
         save_path = os.path.join(OUTPUT_DIR, f"mosaic_{MICRO_CLASS}_{i}.png")
