@@ -23,7 +23,7 @@ TILE_STYLE = "FLOWERS"
 MACRO_PROMPTS = [
     "majestic landscape, northern lights over snowy mountains, vivid colors, 8k",
     "lush green forest clearing with sunlight streaming through trees, studio ghibli style",
-    "cyberpunk city street at night, neon lights, highly detailed",
+    "steampunk industrial city, brass gears and steam clouds, victorian architecture, golden hour lighting",
 ]
 
 # ---- PROMPTS ----
