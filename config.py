@@ -17,13 +17,13 @@ MACRO_STEPS = 30
 MICRO_STEPS = 15  # We can afford higher steps/quality since we only gen 16 images
 GUIDANCE = 5.0
 
-TILE_STYLE = "FLOWERS"
+TILE_STYLE = "FISH"
 
 # ---- Prompts ----
 MACRO_PROMPTS = [
     "majestic landscape, northern lights over snowy mountains, vivid colors, 8k",
     "lush green forest clearing with sunlight streaming through trees, studio ghibli style",
-    "steampunk industrial city, brass gears and steam clouds, victorian architecture, golden hour lighting",
+    "futuristic solarpunk city, white marble towers with vertical gardens, bright blue sky, utopian style",
 ]
 
 # ---- PROMPTS ----
