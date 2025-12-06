@@ -4,6 +4,8 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import
     StableDiffusionXLPipeline,
 )
 from torch.nn import functional as F
+from torchvision.transforms.functional import to_tensor
+
 from .utils import log
 import config
 
@@ -31,8 +33,6 @@ def generate_macro(pipe, prompt):
         num_inference_steps=config.MACRO_STEPS,
         guidance_scale=config.GUIDANCE,
     ).images[0]
-
-    from torchvision.transforms.functional import to_tensor
 
     return to_tensor(out)
 

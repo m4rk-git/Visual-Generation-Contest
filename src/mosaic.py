@@ -9,18 +9,18 @@ def assemble_mosaic(palette_tiles, index_map, macro_tensor):
     index_map: np array [Grid, Grid] with cluster IDs
     macro_tensor: The original full-res macro image [3, H, W]
     """
+
     log(">> Assembling Mosaic with Color Transfer...")
 
     # Calculate dimensions
     final_res = config.GRID_SIZE * config.MICRO_TILE_PX
     mosaic = torch.zeros((3, final_res, final_res))
 
-    # Pre-calculate mean color of every palette tile for fast adjustment
+    # Pre-calculate mean color of every palette tile
     palette_means = {}
     for cid, img in palette_tiles.items():
         palette_means[cid] = img.mean(dim=(1, 2))
 
-    # Iterate through the grid
     for y in range(config.GRID_SIZE):
         for x in range(config.GRID_SIZE):
 
@@ -44,8 +44,7 @@ def assemble_mosaic(palette_tiles, index_map, macro_tensor):
 
             # 2. COLOR TRANSFER (The Fix)
 
-            # We add a 'strength' factor (0.0 to 1.0).
-            # 1.0 = Perfect match to macro (Very recognizable, slightly tinted tiles)
+            # We add a 'strength' factor (0.0 to 1.0). 1.0 = Perfect match to macro
             BLEND_STRENGTH = 0.8
 
             shift = target_mean - source_mean

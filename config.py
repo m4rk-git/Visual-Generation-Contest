@@ -14,19 +14,18 @@ PALETTE_SIZE = 64  # Number of colors in macro palette
 # ---- SDXL ----
 DEVICE = "cuda"
 MACRO_STEPS = 30
-MICRO_STEPS = 15  # We can afford higher steps/quality since we only gen 16 images
+MICRO_STEPS = 15
 GUIDANCE = 5.0
 
 TILE_STYLE = "FISH"
 
-# ---- Prompts ----
+# ---- PROMPTS ----
 MACRO_PROMPTS = [
     "majestic landscape, northern lights over snowy mountains, vivid colors, 8k",
     "lush green forest clearing with sunlight streaming through trees, studio ghibli style",
     "futuristic solarpunk city, white marble towers with vertical gardens, bright blue sky, utopian style",
 ]
 
-# ---- PROMPTS ----
 STYLE_CONFIG = {
     "ANIME": {
         "base_prompts": [

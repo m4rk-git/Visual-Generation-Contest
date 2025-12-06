@@ -12,6 +12,7 @@ def quantize_macro(macro_tensor):
        - palette_info: List of dicts (id, rgb, prompt_color)
        - index_map: 64x64 array where each pixel is a cluster ID.
     """
+
     log(">> Quantizing Macro Scene...")
 
     # 1. Downsample
